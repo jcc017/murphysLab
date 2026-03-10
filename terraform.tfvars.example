@@ -1,0 +1,46 @@
+# AWS
+aws_region     = "us-east-2"
+aws_account_id = "123456789012"
+windows_ami_id = "ami-xxxxxxxxxxxxxxxxx"
+unix_ami_id    = "ami-xxxxxxxxxxxxxxxxx"
+instance_type  = "t3a.medium"
+subnet_id      = "subnet-xxxxxxxxxxxxxxxxx"
+vpc_id         = "vpc-xxxxxxxxxxxxxxxxx"
+win_sg_id      = ["sg-xxxxxxxxxxxxxxxxx"]
+unix_sg_id     = ["sg-xxxxxxxxxxxxxxxxx"]
+aws_key_pair_name = "your-key-pair-name"
+
+# Server Identity
+win_hostname      = "win-target-hostname"
+unix_hostname     = "unix-target-hostname"
+win_instance_name = "win-instance-name"
+unix_instance_name = "unix-instance-name"
+
+# Active Directory
+domain_name = "your.domain.com"
+dc_ip       = "10.x.x.x"
+
+# Conjur
+conjur_url     = "https://yourtenantname.secretsmgr.cyberark.cloud/api"
+conjur_account = "conjur"
+conjur_login   = "host/data/your-workload-id"
+conjur_api_key = "your-conjur-api-key"
+
+# Conjur Secret Paths
+conjur_aws_access_key_path    = "data/path/to/aws-access-key"
+conjur_aws_secret_key_path    = "data/path/to/aws-secret-key"
+conjur_domain_username_path   = "data/path/to/domain-username"
+conjur_domain_password_path   = "data/path/to/domain-password"
+conjur_api_username_path      = "data/path/to/api-username"
+conjur_api_password_path      = "data/path/to/api-password"
+conjur_pem_key_path           = "data/path/to/pem-key"
+
+# CyberArk Tenant
+identity_tenant_id = "your-identity-tenant-id"
+cybr_subdomain     = "your-subdomain"
+
+# Safes and Platforms
+win_target_safe  = "your-windows-safe"
+unix_target_safe = "your-unix-safe"
+win_platform_id  = "WinServerLocal"
+unix_platform_id = "UnixSSH"
