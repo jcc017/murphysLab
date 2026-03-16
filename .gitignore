@@ -1,3 +1,8 @@
 ec2-compute/ec2-terraform.tfvars
 dbs/db-terraform.tfvars
 terraform.tfvars
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+inventory/hosts.ini
