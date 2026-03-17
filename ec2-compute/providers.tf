@@ -16,6 +16,14 @@ terraform {
       source  = "hashicorp/local"
       version = "~> 2.0"
     }
+    idsec = {
+      source  = "cyberark/idsec"
+      version = ">= 0.1"
+    }
+    cyberark = {
+      source  = "cyberark/cyberark"
+      version = "~> 0.0"
+    }
   }
 }
 
@@ -25,13 +33,18 @@ provider "aws" {
   secret_key = data.conjur_secret.aws_secret_key.value
 }
 
-#provider "idsec" {
-  # Configuration options
-#}
+provider "idsec" {
+  auth_method = "identity"
+  username    = data.conjur_secret.ispss_username.value
+  secret      = data.conjur_secret.ispss_password.value
+}
 
-#provider "cyberark" {
-  # Configuration options
-#}
+provider "cyberark" {
+  tenant        = var.identity_tenant_id
+  domain        = var.cybr_subdomain
+  client_id     = data.conjur_secret.ispss_username.value
+  client_secret = data.conjur_secret.ispss_password.value
+}
 
 provider "conjur" {
   appliance_url = var.conjur_url
