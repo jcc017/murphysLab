@@ -125,12 +125,12 @@ variable "conjur_api_password_path" {
 }
 
 # Conjur Variable Paths - AWS Access Key
-variable "conjur_aws_access_key_id_path" {
+variable "conjur_aws_access_key_id" {
   description = "Conjur variable path for AWS Access Key ID"
   type        = string
 }
 
-variable "conjur_aws_access_key_path" {
+variable "conjur_aws_secret_key" {
   description = "Conjur variable path for AWS Access Key Secret"
   type        = string
 }
@@ -143,6 +143,22 @@ variable "identity_tenant_id" {
 
 variable "cybr_subdomain" {
   description = "Subdomain of CyberArk tenant"
+  type        = string
+}
+
+#CyberArk Connector Management
+variable "cybr_cm_network" {
+  description = "Connector Mgmt network identifier"
+  type        = string
+}
+
+variable "cybr_cm_pool" {
+  description = "Name of the existing SIA connector manager pool"
+  type        = string
+}
+
+variable "cybr_connector_name" {
+  description = "Name of the existing SIA access connector"
   type        = string
 }
 
