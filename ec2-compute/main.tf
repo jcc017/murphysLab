@@ -138,236 +138,28 @@ resource "null_resource" "ansible_inventory" {
 }
 
 # CyberArk Automation - Account Onboarding and SIA Policy Creation
-resource "null_resource" "cybr_automation" {
-  depends_on = [
-  null_resource.ansible_windows,
-  null_resource.ansible_unix,
-  random_password.win_admin
+resource "idsec_pcloud_account" "win_srv_admin" {
+  name        = "Administrator-${var.win_hostname}"
+  platform_id = var.win_platform_id
+  username    = "Administrator"
+  address     = aws_instance.win_srv.private_ip
+  secret_type = "password"
+  secret      = random_password.win_admin.result
+  safe_name   = var.win_target_safe
+  automatic_management_enabled = true
 
-  ]
+  depends_on = [ aws_instance.win_srv ]
+}
 
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
-    command = <<-EOT
-   
+resource "idsec_pcloud_account" "ec2-user" {
+  name        = "ec2-user-${var.unix_hostname}"
+  platform_id = var.unix_platform_id
+  username    = "ec2-user"
+  address     = aws_instance.unix_srv.private_ip
+  secret_type = "key"
+  secret      = data.conjur_secret.pem_key.value
+  safe_name   = var.unix_target_safe
+  automatic_management_enabled = true
 
-      # Step 1 - Get bearer token from ISPSS platformtoken endpoint
-        ISPSS_USERNAME="${data.conjur_secret.ispss_username.value}"
-        ISPSS_PASSWORD="${data.conjur_secret.ispss_password.value}"
-
-        TOKEN=$(curl -s -X POST \
-        "https://${var.identity_tenant_id}.id.cyberark.cloud/oauth2/platformtoken" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "grant_type=client_credentials&client_id=$ISPSS_USERNAME&client_secret=$ISPSS_PASSWORD" \
-        | jq -r '.access_token')
-
-      # Step 2 - Onboard Windows Administrator account to Privilege Cloud
-        WIN_ACCOUNT_PAYLOAD=$(jq -n \
-            --arg name "Administrator-${var.win_hostname}" \
-            --arg address "${aws_instance.win_srv.private_ip}" \
-            --arg platformId "${var.win_platform_id}" \
-            --arg safeName "${var.win_target_safe}" \
-            --arg secret "${random_password.win_admin.result}" \
-            '{
-            name: $name,
-            address: $address,
-            userName: "Administrator",
-            platformId: $platformId,
-            safeName: $safeName,
-            secretType: "password",
-            secret: $secret,
-            secretManagement: {
-                automaticManagementEnabled: true
-            }
-            }')
-
-        WIN_ACCOUNT_ID=$(curl -s -X POST \
-            "https://${var.cybr_subdomain}.privilegecloud.cyberark.cloud/PasswordVault/API/Accounts/" \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$WIN_ACCOUNT_PAYLOAD" \
-            | jq -r '.id')
-
-
-      # Step 3 - Onboard Unix ec2-user account with private key
-
-        PEM_KEY="${data.conjur_secret.pem_key.value}"
-
-        UNIX_ACCOUNT_PAYLOAD=$(jq -n \
-            --arg name "ec2-user-${var.unix_hostname}" \
-            --arg address "${aws_instance.unix_srv.private_ip}" \
-            --arg platformId "${var.unix_platform_id}" \
-            --arg safeName "${var.unix_target_safe}" \
-            --arg secret "$PEM_KEY" \
-            '{
-            name: $name,
-            address: $address,
-            userName: "ec2-user",
-            platformId: $platformId,
-            safeName: $safeName,
-            secretType: "key",
-            secret: $secret,
-            secretManagement: {
-                automaticManagementEnabled: true
-            }
-            }')
-
-        UNIX_ACCOUNT_ID=$(curl -s -X POST \
-            "https://${var.cybr_subdomain}.privilegecloud.cyberark.cloud/PasswordVault/API/Accounts/" \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$UNIX_ACCOUNT_PAYLOAD" \
-            | jq -r '.id')
-
-      # Step 4 - Retrieve Safe members for both target Safes
-        WIN_MEMBERS=$(curl -s -X GET \
-            "https://${var.cybr_subdomain}.privilegecloud.cyberark.cloud/PasswordVault/API/Safes/${var.win_target_safe}/Members/" \
-            -H "Authorization: Bearer $TOKEN" \
-            | jq '[.value[] | select(.isPredefinedUser == false) | {name: .memberName, type: .memberType}]')
-
-        UNIX_MEMBERS=$(curl -s -X GET \
-            "https://${var.cybr_subdomain}.privilegecloud.cyberark.cloud/PasswordVault/API/Safes/${var.unix_target_safe}/Members/" \
-            -H "Authorization: Bearer $TOKEN" \
-            | jq '[.value[] | select(.isPredefinedUser == false) | {name: .memberName, type: .memberType}]')
-
-      # Step 5 - SIA policy pre-checks
-        WIN_FQDN_CHECK=$(curl -s -X GET \
-            "https://${var.cybr_subdomain}.dpa.cyberark.cloud/api/access-policies?filter=(fqdns contains '${var.win_hostname}.${var.domain_name}')" \
-            -H "Authorization: Bearer $TOKEN" \
-            | jq '.total')
-
-        WIN_WILDCARD_CHECK=$(curl -s -X GET \
-            "https://${var.cybr_subdomain}.dpa.cyberark.cloud/api/access-policies?filter=(fqdns contains '*.${var.domain_name}')" \
-            -H "Authorization: Bearer $TOKEN" \
-            | jq '.total')
-
-        WIN_VPC_CHECK=$(curl -s -X GET \
-            "https://${var.cybr_subdomain}.dpa.cyberark.cloud/api/access-policies?filter=(platforms contains 'AWS')" \
-            -H "Authorization: Bearer $TOKEN" \
-            | jq '[.items[] | select(.rules[].assets[]?.id == "${aws_instance.win_srv.private_ip}")] | length')
-
-        UNIX_FQDN_CHECK=$(curl -s -X GET \
-            "https://${var.cybr_subdomain}.dpa.cyberark.cloud/api/access-policies?filter=(fqdns contains '${var.unix_hostname}.${var.domain_name}')" \
-            -H "Authorization: Bearer $TOKEN" \
-            | jq '.total')
-
-        UNIX_WILDCARD_CHECK=$WIN_WILDCARD_CHECK
-
-        UNIX_VPC_CHECK=$(curl -s -X GET \
-            "https://${var.cybr_subdomain}.dpa.cyberark.cloud/api/access-policies?filter=(platforms contains 'AWS')" \
-            -H "Authorization: Bearer $TOKEN" \
-            | jq '[.items[] | select(.rules[].assets[]?.id == "${aws_instance.unix_srv.private_ip}")] | length')
-
-      # Step 6 - Split Safe members into users and groups
-        WIN_USERS=$(echo $WIN_MEMBERS | jq '[.[] | select(.type == "User") | {name: .name}]')
-        WIN_GROUPS=$(echo $WIN_MEMBERS | jq '[.[] | select(.type == "Group") | {name: .name}]')
-        UNIX_USERS=$(echo $UNIX_MEMBERS | jq '[.[] | select(.type == "User") | {name: .name}]')
-        UNIX_GROUPS=$(echo $UNIX_MEMBERS | jq '[.[] | select(.type == "Group") | {name: .name}]')
-
-      # Step 7 - Create SIA policies if no existing policy found
-        if [ "$WIN_FQDN_CHECK" -eq 0 ] && [ "$WIN_WILDCARD_CHECK" -eq 0 ] && [ "$WIN_VPC_CHECK" -eq 0 ]; then
-            WIN_POLICY_PAYLOAD=$(jq -n \
-            --arg policyName "TerraformWindows-${var.win_hostname}" \
-            --arg region "${var.aws_region}" \
-            --arg vpc "${var.vpc_id}" \
-            --arg account "${var.aws_account_id}" \
-            --argjson users "$WIN_USERS" \
-            --argjson groups "$WIN_GROUPS" \
-            '{
-                policyName: $policyName,
-                status: "Enabled",
-                policyType: "VM",
-                providersData: {
-                AWS: {
-                    providerName: "AWS",
-                    regions: [$region],
-                    vpcIds: [$vpc],
-                    accountIds: [$account],
-                    tags: []
-                }
-                },
-                userAccessRules: [{
-                ruleName: "TerraformWindows-Access",
-                connectionInformation: {
-                    connectAs: {
-                    AWS: {
-                        rdp: {
-                        localEphemeralUser: {
-                            assignGroups: ["Administrators"]
-                        }
-                        }
-                    }
-                    },
-                    daysOfWeek: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
-                    fullDays: true,
-                    grantAccess: 24,
-                    timeZone: "US/Eastern"
-                },
-                userData: {
-                    users: $users,
-                    groups: $groups,
-                    roles: []
-                }
-                }]
-            }')
-
-            WIN_POLICY_ID=$(curl -s -X POST \
-            "https://${var.cybr_subdomain}.dpa.cyberark.cloud/api/access-policies" \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$WIN_POLICY_PAYLOAD" \
-            | jq -r '.policyId')
-        fi
-
-        if [ "$UNIX_FQDN_CHECK" -eq 0 ] && [ "$UNIX_WILDCARD_CHECK" -eq 0 ] && [ "$UNIX_VPC_CHECK" -eq 0 ]; then
-            UNIX_POLICY_PAYLOAD=$(jq -n \
-            --arg policyName "TerraformUnix-${var.unix_hostname}" \
-            --arg region "${var.aws_region}" \
-            --arg vpc "${var.vpc_id}" \
-            --arg account "${var.aws_account_id}" \
-            --argjson users "$UNIX_USERS" \
-            --argjson groups "$UNIX_GROUPS" \
-            '{
-                policyName: $policyName,
-                status: "Enabled",
-                policyType: "VM",
-                providersData: {
-                AWS: {
-                    providerName: "AWS",
-                    regions: [$region],
-                    vpcIds: [$vpc],
-                    accountIds: [$account],
-                    tags: []
-                }
-                },
-                userAccessRules: [{
-                ruleName: "TerraformUnix-Access",
-                connectionInformation: {
-                    connectAs: {
-                    AWS: {
-                        ssh: "ec2-user"
-                    }
-                    },
-                    daysOfWeek: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
-                    fullDays: true,
-                    grantAccess: 24,
-                    timeZone: "US/Eastern"
-                },
-                userData: {
-                    users: $users,
-                    groups: $groups,
-                    roles: []
-                }
-                }]
-            }')
-
-            UNIX_POLICY_ID=$(curl -s -X POST \
-            "https://${var.cybr_subdomain}.dpa.cyberark.cloud/api/access-policies" \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$UNIX_POLICY_PAYLOAD" \
-            | jq -r '.policyId')
-        fi
-    EOT
-  }
+  depends_on = [ aws_instance.unix_srv ]
 }

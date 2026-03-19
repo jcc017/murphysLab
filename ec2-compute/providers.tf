@@ -39,12 +39,6 @@ provider "idsec" {
   secret      = data.conjur_secret.ispss_password.value
 }
 
-provider "cyberark" {
-  tenant        = var.identity_tenant_id
-  domain        = var.cybr_subdomain
-  client_id     = data.conjur_secret.ispss_username.value
-  client_secret = data.conjur_secret.ispss_password.value
-}
 
 provider "conjur" {
   appliance_url = var.conjur_url

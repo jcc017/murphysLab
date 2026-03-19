@@ -15,11 +15,6 @@ variable "instance_type" {
 }
 
 # Networking
-variable "aws_account_id" {
-  description = "Account ID for AWS environment"
-  type        = string
-}
-
 variable "aws_region" {
   description = "Region in AWS"
   type        = string
@@ -27,11 +22,6 @@ variable "aws_region" {
 
 variable "subnet_id" {
   description = "ID for the AWS network subnet"
-  type        = string
-}
-
-variable "vpc_id" {
-  description = "ID of VPC for EC2 instances"
   type        = string
 }
 
@@ -141,17 +131,6 @@ variable "conjur_aws_secret_key_path" {
 #Conjur Variable Path - AWS PEM key
 variable "conjur_pem_key_path" {
   description = "Conjur variable path for .pem key to access new instances"
-  type        = string
-}
-
-# CyberArk Tenant
-variable "identity_tenant_id" {
-  description = "Identity ID for CyberArk tenant"
-  type        = string
-}
-
-variable "cybr_subdomain" {
-  description = "Subdomain of CyberArk tenant"
   type        = string
 }
 
