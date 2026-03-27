@@ -63,6 +63,31 @@ resource "aws_db_instance" "postgres_db" {
 
 }
 
+resource "aws_security_group" "mssql_sg" {
+  name        = "mssql-sg-${var.mssql_instance_name}"
+  description = "Security group for MSSQL RDS instance"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description = "MSSQL port"
+    from_port   = 1433
+    to_port     = 1433
+    protocol    = "tcp"
+    cidr_blocks = var.mssql_allowed_cidrs
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "mssql-sg-${var.mssql_instance_name}"
+  }
+}
+
 resource "aws_db_instance" "mssql_db" {
     identifier = var.mssql_instance_name
     engine         = "sqlserver-ex"
@@ -72,11 +97,12 @@ resource "aws_db_instance" "mssql_db" {
     username = var.mssql_master_username
     password= random_password.mssql.result
     db_subnet_group_name = var.db_subnet_group_name
-    vpc_security_group_ids = var.mssql_sg_id
+    vpc_security_group_ids = [aws_security_group.mssql_sg.id]
     skip_final_snapshot = true
     tags = {
         Name = var.mssql_instance_name
     }
+    depends_on = [ aws_security_group.mssql_sg ]
 }
 
 resource  "cyberark_db_account" "postgres_db" {

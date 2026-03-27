@@ -62,8 +62,8 @@ variable "postgres_sg_id" {
   type        = list(string)
 }
 
-variable "mssql_sg_id" {
-  description = "ID(s) of MSSQL security group(s)"
+variable "mssql_allowed_cidrs" {
+  description = "List of CIDR blocks allowed to connect to MSSQL on port 1433"
   type        = list(string)
 }
 
