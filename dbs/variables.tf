@@ -147,20 +147,20 @@ variable "cybr_subdomain" {
 }
 
 #CyberArk Connector Management
-variable "cybr_cm_network" {
-  description = "Connector Mgmt network identifier"
-  type        = string
-}
+#variable "cybr_cm_network" {
+ # description = "Connector Mgmt network identifier"
+  #type        = string
+#}
 
-variable "cybr_cm_pool" {
-  description = "Name of the existing SIA connector manager pool"
-  type        = string
-}
+#variable "cybr_cm_pool" {
+ # description = "Name of the existing SIA connector manager pool"
+  #type        = string
+#}
 
-variable "cybr_connector_name" {
-  description = "Name of the existing SIA access connector"
-  type        = string
-}
+#variable "cybr_connector_name" {
+ # description = "Name of the existing SIA access connector"
+  #type        = string
+#}
 
 # CyberArk Target Safes
 variable "postgres_target_safe" {
