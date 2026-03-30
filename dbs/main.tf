@@ -1,4 +1,4 @@
-data "conjur_secret" "aws_access_key_id" {
+data "conjur_secret" "aws_access_key" {
   name = var.conjur_aws_access_key_id
 }
 
