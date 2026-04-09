@@ -14,6 +14,11 @@ variable "instance_type" {
   type        = string
 }
 
+variable "iam_instance_profile" {
+  description = "IAM profile for the EC2 instances"
+  type = string
+}
+
 # Networking
 variable "aws_region" {
   description = "Region in AWS"
