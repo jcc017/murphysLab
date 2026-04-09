@@ -158,7 +158,7 @@ resource "idsec_sia_workspaces_db" "postgres_db" {
   read_write_endpoint         = aws_db_instance.postgres_db.address
   configured_auth_method_type = "local"
   port                        = var.postgres_db_port
-  secret_id                   = idsec_sia_db_strong_accounts.postgres_strong_account.id
+  secret_id                   = idsec_sia_db_strong_accounts.postgres_strong_account.account_id
   family                      = "postgresql"
   platform                    = "AWS"
   region                      = var.aws_region
@@ -170,7 +170,7 @@ resource "idsec_sia_workspaces_db" "mssql_db" {
   read_write_endpoint         = aws_db_instance.mssql_db.address
   configured_auth_method_type = "local"
   port                        = var.mssql_db_port
-  secret_id                   = idsec_sia_db_strong_accounts.mssql_strong_account.id
+  secret_id                   = idsec_sia_db_strong_accounts.mssql_strong_account.account_id
   family                      = "mssql"
   platform                    = "AWS"
   region                      = var.aws_region
