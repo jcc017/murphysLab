@@ -56,6 +56,13 @@ variable "unix_hostname" {
   type        = string
 }
 
+# Ansible Variables
+variable "ansible_root" {
+  description = "Absolute path to the ansible directory"
+  type        = string
+  
+}
+
 # Server Instance Names
 variable "win_instance_name" {
   description = "Display name for Windows EC2 instance as shown in AWS console"
