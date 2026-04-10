@@ -38,8 +38,8 @@ resource "random_password" "win_admin" {
 
 # Use local_file + templatefile to ensures hosts.ini has no leading whitespace that breaks Ansible INI parsing.
 resource "local_file" "ansible_inventory" {
-  filename = "${path.module}/inventory/hosts.ini"
-  content  = templatefile("${path.module}/templates/hosts.ini.tpl", {
+  filename = "${var.ansible_root}/inventory/hosts.ini"
+  content  = templatefile("${path.module}/templates/hosts.ini", {
     win_ip  = aws_instance.win_srv.private_ip
     unix_ip = aws_instance.unix_srv.private_ip
   })
@@ -100,16 +100,16 @@ resource "null_resource" "ansible_windows" {
         echo "Waiting for WinRM..."; sleep 10
       done
 
-      ansible-playbook playbooks/win_local_admin.yml \
-        -i inventory/hosts.ini \
+      ansible-playbook ${var.ansible_root}/playbooks/win_local_admin.yml \
+        -i ${var.ansible_root}/inventory/hosts.ini \
         -l ${aws_instance.win_srv.private_ip} \
         -e "@$VARS_FILE"
 
-      ansible-playbook playbooks/domain_join.yml \
-        -i inventory/hosts.ini \
-        -l ${aws_instance.win_srv.private_ip} \
-        -e "dc_ip=${var.dc_ip}" \
-        -e "@$VARS_FILE"
+      ansible-playbook ${var.ansible_root}/playbooks/domain_join.yml \
+       -i ${var.ansible_root}/inventory/hosts.ini \
+       -l ${aws_instance.win_srv.private_ip} \
+       -e "dc_ip=${var.dc_ip}" \
+       -e "@$VARS_FILE"
     EOT
   }
 }
