@@ -1,0 +1,85 @@
+---
+- name: Domain Join
+  hosts: win_srv
+  gather_facts: true
+
+  vars:
+    dc_ip: "{{ dc_ip }}"
+    domain_name: "example.local"
+    ou_path: "OU=Servers,DC=example,DC=local"
+    domain_admin_user: "{{ domain_username | default(lookup('cyberark.conjur.conjur_variable', 'ansible/secrets/domain_admin_user')) }}"
+    domain_admin_password: "{{ domain_password | default(lookup('cyberark.conjur.conjur_variable', 'ansible/secrets/domain_admin_password')) }}"
+
+    # Define a secondary DNS server for resilience. Falls back to primary only if unset.
+    secondary_dc_ip: "{{ secondary_dc_ip | default('') }}"
+
+  tasks:
+
+    # ------------------------------------------------------------------
+    # Connectivity checks run ON the Windows host (win_command)
+    # rather than on the Ansible controller to confirm the VM
+    # itself can reach the DC
+    # Checks LDAP (389), Kerberos (88), and SMB (445)
+    # ------------------------------------------------------------------
+    - name: Confirm LDAP (389) reachable from Windows host
+      win_command: >
+        powershell -Command
+        "(Test-NetConnection -ComputerName {{ dc_ip }} -Port 389).TcpTestSucceeded"
+      register: ldap_check
+      failed_when: "'True' not in ldap_check.stdout"
+      changed_when: false
+
+    - name: Confirm Kerberos (88) reachable from Windows host
+      win_command: >
+        powershell -Command
+        "(Test-NetConnection -ComputerName {{ dc_ip }} -Port 88).TcpTestSucceeded"
+      register: krb_check
+      failed_when: "'True' not in krb_check.stdout"
+      changed_when: false
+
+    - name: Confirm SMB (445) reachable from Windows host
+      win_command: >
+        powershell -Command
+        "(Test-NetConnection -ComputerName {{ dc_ip }} -Port 445).TcpTestSucceeded"
+      register: smb_check
+      failed_when: "'True' not in smb_check.stdout"
+      changed_when: false
+
+    # ------------------------------------------------------------------
+    # Set primary + optional secondary DNS before domain join.
+    # ------------------------------------------------------------------
+    - name: Set DNS server(s) for domain connectivity
+      win_dns_client:
+        adapter_name: "*"
+        ipv4_addresses: >-
+          {{
+            ([dc_ip] + ([secondary_dc_ip] if secondary_dc_ip else []))
+          }}
+
+    # ------------------------------------------------------------------
+    # Idempotency — check current domain membership before joining.
+    # Skips the join (and the reboot) if the machine is already a member,
+    # preventing unexpected reboots on Terraform re-runs.
+    # ------------------------------------------------------------------
+    - name: Check current domain membership
+      win_shell: "(Get-WmiObject Win32_ComputerSystem).PartOfDomain"
+      register: domain_status
+      changed_when: false
+
+    - name: Join the server to the domain
+      win_domain_membership:
+        dns_domain_name: "{{ domain_name }}"
+        domain_admin_user: "{{ domain_admin_user }}"
+        domain_admin_password: "{{ domain_admin_password }}"
+        ou_path: "{{ ou_path }}"
+        state: domain
+      when: domain_status.stdout | trim == "False"
+      register: join_result
+
+    - name: Reboot server to complete domain join
+      win_reboot:
+        reboot_timeout: 300
+        post_reboot_delay: 30
+      when:
+        - domain_status.stdout | trim == "False"
+        - join_result is changed

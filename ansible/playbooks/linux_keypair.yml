@@ -1,0 +1,18 @@
+---
+- name: Linux Key Pair
+  hosts: linux_srv
+  gather_facts: false
+
+  tasks:
+    - name: Create the keypair
+      openssh_keypair:
+        path: /home/ec2-user/.ssh/id_rsa
+        type: rsa
+        size: 4096
+        state: present
+        
+    - name: Retrieve the public key
+      fetch:
+        src: /home/ec2-user/.ssh/id_rsa.pub
+        dest: "./keys/{{ inventory_hostname }}_id_rsa.pub"
+        flat: true

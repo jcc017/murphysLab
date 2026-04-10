@@ -1,0 +1,18 @@
+---
+- name: Windows Local Admin
+  hosts: win_srv
+  gather_facts: true
+
+  tasks:
+    - name: Set the SID-500 account password
+      win_user:
+        name: Administrator
+        password: "{{ sid500_password }}"
+        state: present
+        password_never_expires: true
+
+    - name: Confirm Administrator account is enabled
+      win_user:
+        name: Administrator
+        state: present
+        account_disabled: false
