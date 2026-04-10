@@ -39,7 +39,7 @@ resource "random_password" "win_admin" {
 # Use local_file + templatefile to ensures hosts.ini has no leading whitespace that breaks Ansible INI parsing.
 resource "local_file" "ansible_inventory" {
   filename = "${var.ansible_root}/inventory/hosts.ini"
-  content  = templatefile("${path.module}/templates/hosts.ini", {
+  content  = templatefile("${path.module}/templates/hosts.ini.tpl", {
     win_ip  = aws_instance.win_srv.private_ip
     unix_ip = aws_instance.unix_srv.private_ip
   })
