@@ -1,8 +1,8 @@
 [win_srv]
-${win_ip}
+${win_ip} ansible_connection=aws_ssm ansible_shell_type=powershell
 
 [linux_srv]
-${unix_ip}
+${unix_ip} ansible_connection=aws_ssm
 
 [all_srv:children]
 win_srv

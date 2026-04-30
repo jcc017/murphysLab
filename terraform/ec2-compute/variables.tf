@@ -45,6 +45,7 @@ variable "aws_key_pair_name" {
   type        = string
 }
 
+
 # Server Hostnames
 variable "win_hostname" {
   description = "Hostname of Windows Server"

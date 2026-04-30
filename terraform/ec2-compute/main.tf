@@ -40,8 +40,8 @@ resource "random_password" "win_admin" {
 resource "local_file" "ansible_inventory" {
   filename = "${var.ansible_root}/inventory/hosts.ini"
   content  = templatefile("${path.module}/templates/hosts.ini.tpl", {
-    win_ip  = aws_instance.win_srv.private_ip
-    unix_ip = aws_instance.unix_srv.private_ip
+    win_ip  = aws_instance.win_srv.id
+    unix_ip = aws_instance.unix_srv.id
   })
 }
 
@@ -81,9 +81,8 @@ resource "null_resource" "ansible_windows" {
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
-    # Write credentials to a temp vars file so they are never visible
-    # in `ps aux`. The file is uniquely named with $$ (shell PID) and deleted
-    # immediately after the playbook completes (or fails).
+    # Write creds to a temp vars file so never visible
+    # file and deleted immediately after the playbook completes/fails
     
     command = <<-EOT
       VARS_FILE=$(mktemp /tmp/ansible_vars_XXXXXX.yml)
@@ -96,18 +95,23 @@ resource "null_resource" "ansible_windows" {
       VARS
       chmod 600 "$VARS_FILE"
 
-      until nc -w 5 -z ${aws_instance.win_srv.private_ip} 5986; do
-        echo "Waiting for WinRM..."; sleep 10
-      done
-
+      echo "Waiting for Windows to register with AWS SSM..."
+      ansible all -m wait_for_connection \
+        -a "timeout=300" \
+        -i ${var.ansible_root}/inventory/hosts.ini \
+        -l ${aws_instance.win_srv.id} \
+        -e "@$VARS_FILE"
+      
+      echo "Running local admin playbook via SSM..."
       ansible-playbook ${var.ansible_root}/playbooks/win_local_admin.yml \
         -i ${var.ansible_root}/inventory/hosts.ini \
-        -l ${aws_instance.win_srv.private_ip} \
+        -l ${aws_instance.win_srv.id} \
         -e "@$VARS_FILE"
 
+      echo "Running domain join playbook via SSM..."
       ansible-playbook ${var.ansible_root}/playbooks/domain_join.yml \
        -i ${var.ansible_root}/inventory/hosts.ini \
-       -l ${aws_instance.win_srv.private_ip} \
+       -l ${aws_instance.win_srv.id} \
        -e "dc_ip=${var.dc_ip}" \
        -e "@$VARS_FILE"
     EOT
@@ -123,12 +127,16 @@ resource "null_resource" "ansible_unix" {
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     command     = <<-EOT
-      until nc -w 5 -z ${aws_instance.unix_srv.private_ip} 22; do
-        echo "Waiting for SSH..."; sleep 10
-      done && \
+      echo "Waiting for Unix to register with AWS SSM..."
+      ansible all -m wait_for_connection \
+        -a "timeout=300"
+        -i ${var.ansible_root}/inventory/hosts.ini \
+        -l ${aws_instance.unix_srv.id}
+
+      echo "Running keypair playbook via SSM..."
       ansible-playbook playbooks/linux_keypair.yml \
         -i inventory/hosts.ini \
-        -l ${aws_instance.unix_srv.private_ip}
+        -l ${aws_instance.unix_srv.id}
     EOT
   }
 }
