@@ -1,18 +1,11 @@
 ---
-- name: Linux Key Pair
-  hosts: linux_srv
+- name: Configure Linux SSH Key
+  hosts: all
   gather_facts: false
 
   tasks:
-    - name: Create the keypair
-      openssh_keypair:
-        path: /home/ec2-user/.ssh/id_rsa
-        type: rsa
-        size: 4096
+    - name: Add Terraform-generated public key to authorized_keys
+      ansible.posix.authorized_key:
+        user: ec2-user
         state: present
-        
-    - name: Retrieve the public key
-      fetch:
-        src: /home/ec2-user/.ssh/id_rsa.pub
-        dest: "./keys/{{ inventory_hostname }}_id_rsa.pub"
-        flat: true
+        key: "{{ new_public_key }}"
