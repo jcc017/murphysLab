@@ -118,6 +118,12 @@ resource "null_resource" "ansible_windows" {
   }
 }
 
+#generate the key pair for the ec2-user
+resource "tls_private_key" "generated_key" {
+  algorithm = "RSA"
+  rsa_bits = 4096
+}
+
 resource "null_resource" "ansible_unix" {
   depends_on = [
     aws_instance.unix_srv,
@@ -137,6 +143,7 @@ resource "null_resource" "ansible_unix" {
       ansible-playbook playbooks/linux_keypair.yml \
         -i inventory/hosts.ini \
         -l ${aws_instance.unix_srv.id}
+        -e "new_public_key"'${tls_private_key.generated_key.public_key_openssh}'"
     EOT
   }
 }
@@ -161,7 +168,7 @@ resource "idsec_pcloud_account" "ec2-user" {
   username    = "ec2-user"
   address     = aws_instance.unix_srv.private_ip
   secret_type = "key"
-  secret      = data.conjur_secret.pem_key.value
+  secret      = tls_private_key.generated_key.private_key_pem
   safe_name   = var.unix_target_safe
   automatic_management_enabled = true
 

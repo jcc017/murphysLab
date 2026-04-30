@@ -24,6 +24,11 @@ terraform {
       source  = "cyberark/cyberark"
       version = "~> 0.0"
     }
+
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
