@@ -86,7 +86,7 @@ resource "random_id" "s3_bucket_suffix" {
 }
 
 resource "aws_s3_bucket" "ssm_payload_bucket" {
-  bucket = "${var.s3_bucket_name}-${random_id.s3_bucket_suffix}"
+  bucket = "${var.s3_bucket_name}-${random_id.s3_bucket_suffix.hex}"
   force_destroy = true
 
   tags = {
