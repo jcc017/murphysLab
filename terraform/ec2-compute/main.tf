@@ -135,16 +135,15 @@ resource "null_resource" "ansible_windows" {
     # file and deleted immediately after the playbook completes/fails
     
     command = <<-EOT
-      # This will crash if I do not disable the fork
       export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 
       VARS_FILE=$(mktemp /tmp/ansible_vars_XXXXXX.yml)
       trap "rm -f $VARS_FILE" EXIT
 
       cat > "$VARS_FILE" <<VARS
-      domain_username: "${data.conjur_secret.domain_username.value}"
-      domain_password: "${data.conjur_secret.domain_password.value}"
-      sid500_password: "${random_password.win_admin.result}"
+      domain_username: '${data.conjur_secret.domain_username.value}'
+      domain_password: '${data.conjur_secret.domain_password.value}'
+      sid500_password: '${random_password.win_admin.result}'
       VARS
       chmod 600 "$VARS_FILE"
 
@@ -188,11 +187,12 @@ resource "null_resource" "ansible_unix" {
 
     # Pass the AWS context down to Ansible's SSM plugin
     environment = {
+      AWS_ACCESS_KEY_ID = var.conjur_aws_access_key_path
+      AWS_SECRET_ACCESS_KEY = var.conjur_aws_secret_key_path
       AWS_REGION = var.aws_region
     }
 
     command     = <<-EOT
-      # This will crash if I do not disable the fork
       export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 
       echo "Waiting for Unix to register with AWS SSM..."
