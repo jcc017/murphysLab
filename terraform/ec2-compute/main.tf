@@ -40,8 +40,9 @@ resource "random_password" "win_admin" {
 resource "local_file" "ansible_inventory" {
   filename = "${var.ansible_root}/inventory/hosts.ini"
   content  = templatefile("${path.module}/templates/hosts.ini.tpl", {
-    win_ip  = aws_instance.win_srv.id
-    unix_ip = aws_instance.unix_srv.id
+    win_id  = aws_instance.win_srv.id
+    unix_id = aws_instance.unix_srv.id
+    s3_bucket = aws_s3_bucket.ssm_payload_bucket.bucket
   })
 }
 
