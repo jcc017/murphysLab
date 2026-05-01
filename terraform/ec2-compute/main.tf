@@ -81,6 +81,12 @@ resource "null_resource" "ansible_windows" {
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
+
+    # Pass the AWS context down to Ansible's SSM plugin
+    environment = {
+      AWS_REGION = var.aws_region
+    }
+    
     # Write creds to a temp vars file so never visible
     # file and deleted immediately after the playbook completes/fails
     
@@ -135,6 +141,12 @@ resource "null_resource" "ansible_unix" {
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
+
+    # Pass the AWS context down to Ansible's SSM plugin
+    environment = {
+      AWS_REGION = var.aws_region
+    }
+
     command     = <<-EOT
       # This will crash if I do not disable the fork
       export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
@@ -147,8 +159,8 @@ resource "null_resource" "ansible_unix" {
 
       echo "Running keypair playbook via SSM..."
       ansible-playbook ${var.ansible_root}/playbooks/linux_keypair.yml \
-        -i inventory/hosts.ini \
-        -l ${aws_instance.unix_srv.id}
+        -i ${var.ansible_root}/inventory/hosts.ini \
+        -l ${aws_instance.unix_srv.id} \
         -e "new_public_key='${trimspace(tls_private_key.generated_key.public_key_openssh)}'"
     EOT
   }
