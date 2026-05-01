@@ -85,6 +85,9 @@ resource "null_resource" "ansible_windows" {
     # file and deleted immediately after the playbook completes/fails
     
     command = <<-EOT
+      # This will crash if I do not disable the fork
+      export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+
       VARS_FILE=$(mktemp /tmp/ansible_vars_XXXXXX.yml)
       trap "rm -f $VARS_FILE" EXIT
 
@@ -133,17 +136,20 @@ resource "null_resource" "ansible_unix" {
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     command     = <<-EOT
+      # This will crash if I do not disable the fork
+      export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+
       echo "Waiting for Unix to register with AWS SSM..."
       ansible all -m wait_for_connection \
-        -a "timeout=300"
+        -a "timeout=300" \
         -i ${var.ansible_root}/inventory/hosts.ini \
         -l ${aws_instance.unix_srv.id}
 
       echo "Running keypair playbook via SSM..."
-      ansible-playbook playbooks/linux_keypair.yml \
+      ansible-playbook ${var.ansible_root}/playbooks/linux_keypair.yml \
         -i inventory/hosts.ini \
         -l ${aws_instance.unix_srv.id}
-        -e "new_public_key"'${tls_private_key.generated_key.public_key_openssh}'"
+        -e "new_public_key='${trimspace(tls_private_key.generated_key.public_key_openssh)}'"
     EOT
   }
 }
