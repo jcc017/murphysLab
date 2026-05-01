@@ -56,6 +56,9 @@ resource "aws_instance" "win_srv" {
 
   tags = {
     Name = var.win_instance_name
+    I_Purpose = var.win_purpose_tag
+    CA_iScheudler = var.CA_iScheudler_tag
+    I_Owner = var.resource_owner_tag
   }
 }
 
@@ -70,6 +73,46 @@ resource "aws_instance" "unix_srv" {
 
   tags = {
     Name = var.unix_instance_name
+    I_Purpose = var.unix_purpose_tag
+    CA_iScheudler = var.CA_iScheudler_tag
+    I_Owner = var.resource_owner_tag
+  }
+}
+
+#S3 Bucket for SSM Payload
+resource "random_id" "s3_bucket_suffix" {
+  byte_length = 4
+}
+
+resource "aws_s3_bucket" "ssm_payload_bucket" {
+  bucket = "${var.s3_bucket_name}-${random_id.s3_bucket_suffix}"
+  force_destroy = true
+
+  tags = {
+    Name = var.s3_bucket_name
+    I_Purpose = var.s3_purpose_tag
+    CA_iScheudler = var.CA_iScheudler_tag
+    I_Owner = var.resource_owner_tag
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "ssm_bucket_access" {
+  bucket = aws_s3_bucket.ssm_payload_bucket.id
+
+  block_public_acls = true
+  block_public_policy = true
+  ignore_public_acls = true
+  restrict_public_buckets = true
+
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "ssm_bucket_cryptography" {
+  bucket = aws_s3_bucket.ssm_payload_bucket.id
+  
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
   }
 }
 
@@ -86,7 +129,7 @@ resource "null_resource" "ansible_windows" {
     environment = {
       AWS_REGION = var.aws_region
     }
-    
+
     # Write creds to a temp vars file so never visible
     # file and deleted immediately after the playbook completes/fails
     

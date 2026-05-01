@@ -75,6 +75,37 @@ variable "unix_instance_name" {
   type        = string
 }
 
+variable "s3_bucket_name" {
+  description = "Prefix for S3 bucket used for SSM payload"
+  type = string
+}
+
+#AWS Tagging
+variable "win_purpose_tag" {
+  description = "purpose of the Windows instance resource"
+  type = string
+}
+
+variable "unix_purpose_tag" {
+  description = "purpose of the Unix instance resource"
+  type = string
+}
+
+variable "s3_purpose_tag" {
+  description = "purpose of the Windows instance resource"
+  type = string
+}
+
+variable "CA_iScheudler_tag" {
+  description = "CA Scheduler"
+  type = string
+}
+
+variable "resource_owner_tag" {
+  description = "value"
+  type = string
+}
+
 # Active Directory
 variable "domain_name" {
   description = "AD domain to join server"
