@@ -67,7 +67,7 @@
       changed_when: false
 
     - name: Join the server to the domain
-      win_domain_membership:
+      microsoft.ad.membership:
         dns_domain_name: "{{ domain_name }}"
         domain_admin_user: "{{ domain_admin_user }}"
         domain_admin_password: "{{ domain_admin_password }}"
