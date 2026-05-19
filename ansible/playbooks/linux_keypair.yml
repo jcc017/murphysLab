@@ -9,3 +9,4 @@
         user: ec2-user
         state: present
         key: "{{ new_public_key }}"
+      become: yes
