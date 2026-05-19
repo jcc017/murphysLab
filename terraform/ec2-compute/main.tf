@@ -128,7 +128,9 @@ resource "null_resource" "ansible_windows" {
 
     # Pass the AWS context down to Ansible's SSM plugin
     environment = {
-      AWS_REGION = var.aws_region
+      AWS_ACCESS_KEY_ID     = data.conjur_secret.aws_access_key.value
+      AWS_SECRET_ACCESS_KEY = data.conjur_secret.aws_secret_key.value
+      AWS_REGION            = var.aws_region
     }
 
     # Write creds to a temp vars file so never visible
@@ -187,9 +189,9 @@ resource "null_resource" "ansible_unix" {
 
     # Pass the AWS context down to Ansible's SSM plugin
     environment = {
-      AWS_ACCESS_KEY_ID = var.conjur_aws_access_key_path
-      AWS_SECRET_ACCESS_KEY = var.conjur_aws_secret_key_path
-      AWS_REGION = var.aws_region
+      AWS_ACCESS_KEY_ID     = data.conjur_secret.aws_access_key.value
+      AWS_SECRET_ACCESS_KEY = data.conjur_secret.aws_secret_key.value
+      AWS_REGION            = var.aws_region
     }
 
     command     = <<-EOT
