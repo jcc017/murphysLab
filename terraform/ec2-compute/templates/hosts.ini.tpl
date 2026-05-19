@@ -21,4 +21,6 @@ ansible_user=Administrator
 
 #Linux exclusive variables
 [linux_srv:vars]
-ansible_user=ec2-user
+ansible_user=ssm-user
+ansible_remote_tmp=/tmp/.ansible/tmp
+
