@@ -217,7 +217,7 @@ resource "idsec_pcloud_account" "win_srv_admin" {
   name        = "Administrator-${var.win_hostname}"
   platform_id = var.win_platform_id
   username    = "Administrator"
-  address     = aws_instance.win_srv.private_ip
+  address     = "${var.win_hostname}.${var.domain_name}"
   secret_type = "password"
   secret      = random_password.win_admin.result
   safe_name   = var.win_target_safe
