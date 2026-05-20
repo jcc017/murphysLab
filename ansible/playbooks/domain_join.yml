@@ -5,10 +5,15 @@
 
   vars:
     dc_ip: "{{ dc_ip }}"
-    domain_name: "example.local"
+    domain_name: "{{ domain_name }}"
     ou_path: "OU=Servers,DC=example,DC=local"
     domain_admin_user: "{{ domain_username | default(lookup('cyberark.conjur.conjur_variable', 'ansible/secrets/domain_admin_user')) }}"
-    domain_admin_password: "{{ domain_password | default(lookup('cyberark.conjur.conjur_variable', 'ansible/secrets/domain_admin_password')) }}"
+    domain_admin_password: >-
+  {{
+    (domain_password_b64 | b64decode)
+    if domain_password_b64 is defined
+    else lookup('cyberark.conjur.conjur_variable', 'ansible/secrets/domain_admin_password')
+  }}
 
     # Define a secondary DNS server for resilience. Falls back to primary only if unset.
     secondary_dc_ip: "{{ secondary_dc_ip | default('') }}"
