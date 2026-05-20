@@ -144,7 +144,7 @@ resource "null_resource" "ansible_windows" {
 
       cat > "$VARS_FILE" <<VARS
       domain_username: '${data.conjur_secret.domain_username.value}'
-      domain_password: '${data.conjur_secret.domain_password.value}'
+      domain_password: '${base64encode(data.conjur_secret.domain_password.value)}'
       sid500_password: '${random_password.win_admin.result}'
       VARS
       chmod 600 "$VARS_FILE"
@@ -167,6 +167,7 @@ resource "null_resource" "ansible_windows" {
        -i ${var.ansible_root}/inventory/hosts.ini \
        -l ${aws_instance.win_srv.id} \
        -e "dc_ip=${var.dc_ip}" \
+       -e "domain_name=${var.domain_name}" \
        -e "@$VARS_FILE"
     EOT
   }
