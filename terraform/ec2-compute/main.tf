@@ -34,6 +34,10 @@ resource "random_password" "win_admin" {
   min_lower        = 2
   min_numeric      = 2
   min_special      = 2
+
+  lifecycle {
+    ignore_changes = all
+  }
 }
 
 # Use local_file + templatefile to ensures hosts.ini has no leading whitespace that breaks Ansible INI parsing.
@@ -224,7 +228,10 @@ resource "idsec_pcloud_account" "win_srv_admin" {
   safe_name   = var.win_target_safe
   automatic_management_enabled = true
 
-  depends_on = [aws_instance.win_srv]
+  depends_on = [
+    aws_instance.win_srv,
+    null_resource.ansible_windows
+  ]
 }
 
 resource "idsec_pcloud_account" "ec2-user" {
@@ -237,5 +244,8 @@ resource "idsec_pcloud_account" "ec2-user" {
   safe_name   = var.unix_target_safe
   automatic_management_enabled = true
 
-  depends_on = [aws_instance.unix_srv]
+  depends_on = [
+    aws_instance.unix_srv,
+    null_resource.ansible_unix
+  ]
 }
