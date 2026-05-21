@@ -11,7 +11,7 @@ linux_srv
 # Shared variables
 [all_srv:vars]
 ansible_connection=aws_ssm
-ansible_aws_ssm_region=us-east-2
+ansible_aws_ssm_region=${aws_region}
 ansible_aws_ssm_bucket_name=${s3_bucket}
 
 #Windows exclusive variables

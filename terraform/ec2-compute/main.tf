@@ -46,6 +46,7 @@ resource "local_file" "ansible_inventory" {
   content  = templatefile("${path.module}/templates/hosts.ini.tpl", {
     win_id  = aws_instance.win_srv.id
     unix_id = aws_instance.unix_srv.id
+    aws_region = var.aws_region
     s3_bucket = aws_s3_bucket.ssm_payload_bucket.bucket
   })
 }
