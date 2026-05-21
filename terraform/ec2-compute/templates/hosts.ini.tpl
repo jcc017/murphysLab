@@ -18,6 +18,7 @@ ansible_aws_ssm_bucket_name=${s3_bucket}
 [win_srv:vars]
 ansible_shell_type=powershell
 ansible_user=Administrator
+ansible_become=false
 
 #Linux exclusive variables
 [linux_srv:vars]
