@@ -4,5 +4,6 @@ terraform.tfvars
 .terraform/
 *.tfstate
 *.tfstate.backup
+*.backup
 .terraform.lock.hcl
 inventory/hosts.ini
