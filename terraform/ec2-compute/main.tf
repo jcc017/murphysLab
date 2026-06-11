@@ -156,7 +156,7 @@ resource "null_resource" "ansible_windows" {
 
       echo "Waiting for Windows to register with AWS SSM..."
       ansible all -m wait_for_connection \
-        -a "timeout=300" \
+        -a "timeout=600 delay=60" \
         -i ${var.ansible_root}/inventory/hosts.ini \
         -l ${aws_instance.win_srv.id} \
         -e "@$VARS_FILE"
@@ -205,7 +205,7 @@ resource "null_resource" "ansible_unix" {
 
       echo "Waiting for Unix to register with AWS SSM..."
       ansible all -m wait_for_connection \
-        -a "timeout=300" \
+        -a "timeout=600 delay=60" \
         -i ${var.ansible_root}/inventory/hosts.ini \
         -l ${aws_instance.unix_srv.id}
 
