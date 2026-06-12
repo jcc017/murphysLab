@@ -208,7 +208,7 @@ resource "null_resource" "ansible_unix" {
         -a "timeout=600 delay=60" \
         -i ${var.ansible_root}/inventory/hosts.ini \
         -l ${aws_instance.unix_srv.id}
-
+      sleep 30
       echo "Running keypair playbook via SSM..."
       ansible-playbook ${var.ansible_root}/playbooks/linux_keypair.yml \
         -i ${var.ansible_root}/inventory/hosts.ini \
