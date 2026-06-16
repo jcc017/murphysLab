@@ -1,27 +1,22 @@
 [win_srv]
-${win_id}
+${win_private_ip} anisble_host=${win_private_ip}
 
 [linux_srv]
-${unix_id} 
+${unix_private_ip} ansible_host=${unix_private_ip}
 
 [all_srv:children]
 win_srv
 linux_srv
 
-# Shared variables
-[all_srv:vars]
-ansible_connection=aws_ssm
-ansible_aws_ssm_region=${aws_region}
-ansible_aws_ssm_bucket_name=${s3_bucket}
-
 #Windows exclusive variables
 [win_srv:vars]
-ansible_shell_type=powershell
-ansible_user=Administrator
-ansible_become=false
+ansible_connection=winrm
+ansible_winrm_transport=basic
+ansible_port=5985
+ansible_winrm_scheme=http
 
 #Linux exclusive variables
 [linux_srv:vars]
-ansible_user=ssm-user
-ansible_remote_tmp=/tmp/.ansible/tmp
+ansible_connection=ssh
+ansible_user=ec2-user
 

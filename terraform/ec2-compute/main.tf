@@ -44,10 +44,10 @@ resource "random_password" "win_admin" {
 resource "local_file" "ansible_inventory" {
   filename = "${var.ansible_root}/inventory/hosts.ini"
   content  = templatefile("${path.module}/templates/hosts.ini.tpl", {
-    win_id  = aws_instance.win_srv.id
-    unix_id = aws_instance.unix_srv.id
-    aws_region = var.aws_region
-    s3_bucket = aws_s3_bucket.ssm_payload_bucket.bucket
+    win_hostname    = var.win_hostname
+    win_private_ip  = aws_instance.win_srv.private_ip
+    unix_hostname   = var.unix_hostname
+    unix_private_ip = aws_instance.unix_srv.private_ip
   })
 }
 
@@ -59,6 +59,15 @@ resource "aws_instance" "win_srv" {
   vpc_security_group_ids = var.win_sg_id
   key_name               = var.aws_key_pair_name
   iam_instance_profile = var.iam_instance_profile
+
+  user_data = <<-EOF
+    <powershell>
+    winrm quickconfig -q
+    winrm set winrm/config/service '@{AllowUnencrypted="true"}'
+    winrm set winrm/config/service/auth '@{Basic="true"}'
+    netsh advfirewall firewall add rule name="WinRM 5985" protocol=TCP dir=in localport=5985 action=allow
+    </powershell>
+  EOF
 
   tags = {
     Name = var.win_instance_name
@@ -75,7 +84,7 @@ resource "aws_instance" "unix_srv" {
   subnet_id              = var.subnet_id
   vpc_security_group_ids = var.unix_sg_id
   key_name               = var.aws_key_pair_name
-  iam_instance_profile = var.iam_instance_profile
+  iam_instance_profile   = var.iam_instance_profile
 
   tags = {
     Name = var.unix_instance_name
@@ -85,43 +94,7 @@ resource "aws_instance" "unix_srv" {
   }
 }
 
-#S3 Bucket for SSM Payload
-resource "random_id" "s3_bucket_suffix" {
-  byte_length = 4
-}
-
-resource "aws_s3_bucket" "ssm_payload_bucket" {
-  bucket = "${var.s3_bucket_name}-${random_id.s3_bucket_suffix.hex}"
-  force_destroy = true
-
-  tags = {
-    Name = var.s3_bucket_name
-    I_Purpose = var.s3_purpose_tag
-    CA_iScheudler = var.CA_iScheudler_tag
-    I_Owner = var.resource_owner_tag
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "ssm_bucket_access" {
-  bucket = aws_s3_bucket.ssm_payload_bucket.id
-
-  block_public_acls = true
-  block_public_policy = true
-  ignore_public_acls = true
-  restrict_public_buckets = true
-
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "ssm_bucket_cryptography" {
-  bucket = aws_s3_bucket.ssm_payload_bucket.id
-  
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
+#Ansible configuration for the Windows Server
 resource "null_resource" "ansible_windows" {
   depends_on = [
     aws_instance.win_srv,
@@ -130,14 +103,6 @@ resource "null_resource" "ansible_windows" {
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
-
-    # Pass the AWS context down to Ansible's SSM plugin
-    environment = {
-      AWS_ACCESS_KEY_ID     = data.conjur_secret.aws_access_key.value
-      AWS_SECRET_ACCESS_KEY = data.conjur_secret.aws_secret_key.value
-      AWS_REGION            = var.aws_region
-    }
-
     # Write creds to a temp vars file so never visible
     # file and deleted immediately after the playbook completes/fails
     
@@ -154,23 +119,23 @@ resource "null_resource" "ansible_windows" {
       VARS
       chmod 600 "$VARS_FILE"
 
-      echo "Waiting for Windows to register with AWS SSM..."
+      echo "Waiting for WinRM to become available"
       ansible all -m wait_for_connection \
         -a "timeout=600 delay=60" \
         -i ${var.ansible_root}/inventory/hosts.ini \
-        -l ${aws_instance.win_srv.id} \
+        -l ${var.win_hostname} \
         -e "@$VARS_FILE"
       
-      echo "Running local admin playbook via SSM..."
+      echo "Running local admin playbook via WinRM..."
       ansible-playbook ${var.ansible_root}/playbooks/win_local_admin.yml \
         -i ${var.ansible_root}/inventory/hosts.ini \
-        -l ${aws_instance.win_srv.id} \
+        -l ${var.win_hostname} \
         -e "@$VARS_FILE"
 
-      echo "Running domain join playbook via SSM..."
+      echo "Running domain join playbook via WinRM..."
       ansible-playbook ${var.ansible_root}/playbooks/domain_join.yml \
        -i ${var.ansible_root}/inventory/hosts.ini \
-       -l ${aws_instance.win_srv.id} \
+       -l ${var.win_hostname} \
        -e "dc_ip=${var.dc_ip}" \
        -e "domain_name=${var.domain_name}" \
        -e "@$VARS_FILE"
@@ -178,7 +143,7 @@ resource "null_resource" "ansible_windows" {
   }
 }
 
-#generate the key pair for the ec2-user
+#Ansible configuration for the Unix server
 resource "tls_private_key" "generated_key" {
   algorithm = "RSA"
   rsa_bits = 4096
@@ -193,27 +158,26 @@ resource "null_resource" "ansible_unix" {
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
 
-    # Pass the AWS context down to Ansible's SSM plugin
-    environment = {
-      AWS_ACCESS_KEY_ID     = data.conjur_secret.aws_access_key.value
-      AWS_SECRET_ACCESS_KEY = data.conjur_secret.aws_secret_key.value
-      AWS_REGION            = var.aws_region
-    }
-
     command     = <<-EOT
       export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
 
-      echo "Waiting for Unix to register with AWS SSM..."
+      PEM_FILE=$(mktemp /tmp/ssh_key_XXXXXX.pem)
+      trap "rm -f $PEM_FILE" EXIT
+      echo '${data.conjur_secret.pem_key.value}' > "$PEM_FILE"
+      chmod 600 "$PEM_FILE"
+
+      echo "Waiting for SSH to become available"
       ansible all -m wait_for_connection \
         -a "timeout=600 delay=60" \
         -i ${var.ansible_root}/inventory/hosts.ini \
-        -l ${aws_instance.unix_srv.id}
+        -l ${var.unix_hostname}
+        --private-key "$PEM_FILE"
       sleep 30
-      echo "Running keypair playbook via SSM..."
+      echo "Running keypair playbook via SSH..."
       ansible-playbook ${var.ansible_root}/playbooks/linux_keypair.yml \
         -i ${var.ansible_root}/inventory/hosts.ini \
-        -l ${aws_instance.unix_srv.id} \
-        -e "new_public_key='${trimspace(tls_private_key.generated_key.public_key_openssh)}'"
+        -l ${var.unix_hostname} \
+        --private-key "$PEM_FILE"
     EOT
   }
 }
