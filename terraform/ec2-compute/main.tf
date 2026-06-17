@@ -1,3 +1,4 @@
+# Conjur Secrets
 data "conjur_secret" "aws_access_key" {
   name = var.conjur_aws_access_key_path
 }
@@ -26,6 +27,7 @@ data "conjur_secret" "pem_key" {
   name = var.conjur_pem_key_path
 }
 
+# Generate SID 500 Password
 resource "random_password" "win_admin" {
   length           = 20
   special          = true
@@ -40,7 +42,38 @@ resource "random_password" "win_admin" {
   }
 }
 
-# Use local_file + templatefile to ensures hosts.ini has no leading whitespace that breaks Ansible INI parsing.
+# Dynamic AMI lookups for EC2 instances
+data "aws_ami" "windows" {
+  most_recent = true
+  owners = ["amazon"]
+   
+   filter {
+     name = "name"
+     values = ["Windows_Server-2022-English-Full-Base-*"]
+   }
+
+   filter {
+     name = "virtualization-type"
+     values = ["hvm"]
+   }
+}
+
+data "aws_ami" "unix" {
+  most_recent = true
+  owners = ["amazon"]
+   
+   filter {
+     name = "name"
+     values = ["al2023-ami-*-x86_64"]
+   }
+
+   filter {
+     name = "virtualization-type"
+     values = ["hvm"]
+   }
+}
+
+# Create an inventory to be used by Ansible
 resource "local_file" "ansible_inventory" {
   filename = "${var.ansible_root}/inventory/hosts.ini"
   content  = templatefile("${path.module}/templates/hosts.ini.tpl", {
@@ -53,19 +86,19 @@ resource "local_file" "ansible_inventory" {
 
 # Windows Server EC2 Instance
 resource "aws_instance" "win_srv" {
-  ami                    = var.windows_ami_id
+  ami                    = data.aws_ami.windows
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = var.win_sg_id
   key_name               = var.aws_key_pair_name
-  iam_instance_profile = var.iam_instance_profile
+  iam_instance_profile   = var.iam_instance_profile
 
   user_data = <<-EOF
     <powershell>
-    winrm quickconfig -q
-    winrm set winrm/config/service '@{AllowUnencrypted="true"}'
-    winrm set winrm/config/service/auth '@{Basic="true"}'
-    netsh advfirewall firewall add rule name="WinRM 5985" protocol=TCP dir=in localport=5985 action=allow
+    Set-LocalUser -Name "Administrator" -Password ConvertTo-SecureString "${random_password.win_admin.result}" -AsPlainText -Force)
+    Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value $true
+    Set-Item WSMan:\localhost\Service\Auth\Basic -Value $true
+    Enable-PSRemoting -Force
     </powershell>
   EOF
 
@@ -75,11 +108,15 @@ resource "aws_instance" "win_srv" {
     CA_iScheudler = var.CA_iScheudler_tag
     I_Owner = var.resource_owner_tag
   }
+
+  lifecycle {
+    ignore_changes = [ ami,user_data ]
+  }
 }
 
 # Unix Server EC2 Instance
 resource "aws_instance" "unix_srv" {
-  ami                    = var.unix_ami_id
+  ami                    = data.aws_ami.unix
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = var.unix_sg_id
@@ -92,14 +129,25 @@ resource "aws_instance" "unix_srv" {
     CA_iScheudler = var.CA_iScheudler_tag
     I_Owner = var.resource_owner_tag
   }
+
+  lifecycle {
+    ignore_changes = [ ami ]
+  }
 }
 
 #Ansible configuration for the Windows Server
-resource "null_resource" "ansible_windows" {
-  depends_on = [
-    aws_instance.win_srv,
-    local_file.ansible_inventory
-  ]
+resource "terraform_data" "ansible_windows" {
+  
+  triggers_replace = {
+    instance_id     = aws_instance.win_srv.id
+    instance_ip     = aws_instance.win_srv.private_ip
+    sid500_password = random_password.win_admin.result
+    domain_username = data.conjur_secret.domain_username.value
+    domain_name     = var.domain_name
+    dc_ip           = var.dc_ip
+    win_hostname    = var.win_hostname
+    ansible_root    = var.ansible_root
+  }
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
@@ -125,12 +173,6 @@ resource "null_resource" "ansible_windows" {
         -i ${var.ansible_root}/inventory/hosts.ini \
         -l ${var.win_hostname} \
         -e "@$VARS_FILE"
-      
-      echo "Running local admin playbook via WinRM..."
-      ansible-playbook ${var.ansible_root}/playbooks/win_local_admin.yml \
-        -i ${var.ansible_root}/inventory/hosts.ini \
-        -l ${var.win_hostname} \
-        -e "@$VARS_FILE"
 
       echo "Running domain join playbook via WinRM..."
       ansible-playbook ${var.ansible_root}/playbooks/domain_join.yml \
@@ -141,6 +183,11 @@ resource "null_resource" "ansible_windows" {
        -e "@$VARS_FILE"
     EOT
   }
+
+  depends_on = [ 
+    aws_instance.win_srv, 
+    local_file.ansible_inventory
+  ]
 }
 
 #Ansible configuration for the Unix server
@@ -149,12 +196,16 @@ resource "tls_private_key" "generated_key" {
   rsa_bits = 4096
 }
 
-resource "null_resource" "ansible_unix" {
-  depends_on = [
-    aws_instance.unix_srv,
-    local_file.ansible_inventory
-  ]
+resource "terraform_data" "ansible_unix" {
+  triggers_replace = {
+    instance_id = aws_instance.unix_srv.id
+    instance_ip = aws_instance.unix_srv.private_ip
+    unix_hostname = var.unix_hostname
+    ansible_root = var.ansible_root
+  }
 
+  input = aws_instance.unix_srv.id
+  
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
 
@@ -180,6 +231,11 @@ resource "null_resource" "ansible_unix" {
         --private-key "$PEM_FILE"
     EOT
   }
+
+  depends_on = [
+    aws_instance.unix_srv,
+    local_file.ansible_inventory
+  ]
 }
 
 # CyberArk Automation - Account Onboarding and SIA Policy Creation
