@@ -86,7 +86,7 @@ resource "local_file" "ansible_inventory" {
 
 # Windows Server EC2 Instance
 resource "aws_instance" "win_srv" {
-  ami                    = data.aws_ami.windows
+  ami                    = data.aws_ami.windows.id
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = var.win_sg_id
@@ -95,7 +95,7 @@ resource "aws_instance" "win_srv" {
 
   user_data = <<-EOF
     <powershell>
-    Set-LocalUser -Name "Administrator" -Password ConvertTo-SecureString "${random_password.win_admin.result}" -AsPlainText -Force)
+    Set-LocalUser -Name "Administrator" -Password (ConvertTo-SecureString "${random_password.win_admin.result}" -AsPlainText -Force)
     Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value $true
     Set-Item WSMan:\localhost\Service\Auth\Basic -Value $true
     Enable-PSRemoting -Force
@@ -116,7 +116,7 @@ resource "aws_instance" "win_srv" {
 
 # Unix Server EC2 Instance
 resource "aws_instance" "unix_srv" {
-  ami                    = data.aws_ami.unix
+  ami                    = data.aws_ami.unix.id
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = var.unix_sg_id
@@ -205,7 +205,7 @@ resource "terraform_data" "ansible_unix" {
   }
 
   input = aws_instance.unix_srv.id
-  
+
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
 
@@ -221,14 +221,15 @@ resource "terraform_data" "ansible_unix" {
       ansible all -m wait_for_connection \
         -a "timeout=600 delay=60" \
         -i ${var.ansible_root}/inventory/hosts.ini \
-        -l ${var.unix_hostname}
-        --private-key "$PEM_FILE"
+        -l ${var.unix_hostname} \
+        --private-key "$PEM_FILE" 
       sleep 30
       echo "Running keypair playbook via SSH..."
       ansible-playbook ${var.ansible_root}/playbooks/linux_keypair.yml \
         -i ${var.ansible_root}/inventory/hosts.ini \
         -l ${var.unix_hostname} \
-        --private-key "$PEM_FILE"
+        -e "new_public_key='${tls_private_key.generated_key.public_key_openssh}'"\
+        --private-key "$PEM_FILE" 
     EOT
   }
 
@@ -251,7 +252,7 @@ resource "idsec_pcloud_account" "win_srv_admin" {
 
   depends_on = [
     aws_instance.win_srv,
-    null_resource.ansible_windows
+    terraform_data.ansible_windows
   ]
 }
 
@@ -267,6 +268,6 @@ resource "idsec_pcloud_account" "ec2-user" {
 
   depends_on = [
     aws_instance.unix_srv,
-    null_resource.ansible_unix
+    terraform_data.ansible_unix
   ]
 }

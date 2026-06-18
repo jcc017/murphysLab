@@ -1,5 +1,5 @@
 [win_srv]
-${win_private_ip} anisble_host=${win_private_ip}
+${win_private_ip} ansible_host=${win_private_ip}
 
 [linux_srv]
 ${unix_private_ip} ansible_host=${unix_private_ip}
