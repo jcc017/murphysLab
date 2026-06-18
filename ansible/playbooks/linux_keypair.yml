@@ -1,7 +1,7 @@
 ---
 - name: Configure Linux SSH Key
-  hosts: all
-  gather_facts: false
+  hosts: linux_srv
+  gather_facts: true
 
   tasks:
     - name: Add Terraform-generated public key to authorized_keys
