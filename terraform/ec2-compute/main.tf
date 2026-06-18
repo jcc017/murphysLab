@@ -228,7 +228,7 @@ resource "terraform_data" "ansible_unix" {
       ansible-playbook ${var.ansible_root}/playbooks/linux_keypair.yml \
         -i ${var.ansible_root}/inventory/hosts.ini \
         -l ${var.unix_hostname} \
-        -e "new_public_key='${tls_private_key.generated_key.public_key_openssh}'"\
+        -e "new_public_key='${trimspace(tls_private_key.generated_key.public_key_openssh)}'"\
         --private-key "$PEM_FILE" 
     EOT
   }
