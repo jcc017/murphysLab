@@ -172,6 +172,8 @@ resource "terraform_data" "ansible_windows" {
         -a "timeout=600 delay=60" \
         -i ${var.ansible_root}/inventory/hosts.ini \
         -l ${var.win_hostname} \
+        -e "ansible_user=Administrator" \
+        -e "ansible_password=${random_password.win_admin.result}" \
         -e "@$VARS_FILE"
 
       echo "Running domain join playbook via WinRM..."
