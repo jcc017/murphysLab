@@ -58,7 +58,7 @@
     # Set primary + optional secondary DNS before domain join.
     # ------------------------------------------------------------------
     - name: Set DNS server(s) for domain connectivity
-      community.windows.win_dns_client:
+      ansible.windows.win_dns_client:
         adapter_name: "*"
         ipv4_addresses: >-
           {{
