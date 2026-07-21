@@ -1,5 +1,25 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    conjur = {
+      source  = "cyberark/conjur"
+      version = "~> 0.0"
+    }
+  }
+}
+
 provider "aws" {
   region = var.aws_region
   access_key = data.conjur_secret.aws_access_key.value
   secret_key = data.conjur_secret.aws_secret_key.value
+}
+
+provider "conjur" {
+  appliance_url = var.conjur_url
+  account       = var.conjur_account
+  login         = var.conjur_login
+  api_key       = var.conjur_api_key
 }
