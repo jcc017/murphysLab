@@ -136,109 +136,52 @@ resource "aws_instance" "unix_srv" {
 }
 
 #Ansible configuration for the Windows Server
-resource "terraform_data" "ansible_windows" {
+resource "aws_s3_object" "win_ansible_inventory" {
+  bucket = var.s3_bucket_name
+  key = "handoff/${var.win_hostname}/hosts.ini"
+  content = local_file.ansible_inventory.content
   
-  triggers_replace = {
-    instance_id     = aws_instance.win_srv.id
-    instance_ip     = aws_instance.win_srv.private_ip
-    sid500_password = random_password.win_admin.result
+  depends_on = [local_file.ansible_inventory]
+}
+
+resource "aws_s3_object" "win_ansible_vars" {
+  bucket = var.s3_bucket_name
+  key = "handoff/${var.win_hostname}/win_vars.yml"
+  content = yamlencode ({
     domain_username = data.conjur_secret.domain_username.value
+    domain_password = data.conjur_secret.domain_password.value
+    sid500_password = random_password.win_admin.result
     domain_name     = var.domain_name
     dc_ip           = var.dc_ip
-    win_hostname    = var.win_hostname
-    ansible_root    = var.ansible_root
-  }
+  })
 
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
-    # Write creds to a temp vars file so never visible
-    # file and deleted immediately after the playbook completes/fails
-    
-    command = <<-EOT
-      export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+  depends_on= [aws_instance.win_srv]
+}
 
-      VARS_FILE=$(mktemp /tmp/ansible_vars_XXXXXX.yml)
-      trap "rm -f $VARS_FILE" EXIT
+#Ansible configuration for Unix Server
+resource "aws_s3_object" "unix_ansible_inventory" {
+  bucket = var.s3_bucket_name
+  key = "handoff/${var.unix_hostname}/hosts.ini"
+  content = local_file.ansible_inventory.content
+  
+  depends_on = [local_file.ansible_inventory]
+}
 
-      cat > "$VARS_FILE" <<VARS
-      domain_username: '${data.conjur_secret.domain_username.value}'
-      domain_password: '${base64encode(data.conjur_secret.domain_password.value)}'
-      sid500_password: '${random_password.win_admin.result}'
-      VARS
-      chmod 600 "$VARS_FILE"
+resource "aws_s3_object" "unix_ansible_vars" {
+  bucket = var.s3_bucket_name
+  key = "handoff/${var.unix_hostname}/unix_vars.yml"
+  content = yamlencode ({
+   pem_key = data.conjur_secret.pem_key.value
+   new_public_key = trimspace(tls_private_key.generated_key.public_key_openssh)
+  })
 
-      echo "Waiting for WinRM to become available"
-      ansible all -m wait_for_connection \
-        -a "timeout=600 delay=60" \
-        -i ${var.ansible_root}/inventory/hosts.ini \
-        -l ${var.win_hostname} \
-        -e "ansible_user=Administrator" \
-        -e "ansible_password=${random_password.win_admin.result}" \
-        -e "@$VARS_FILE"
-
-      echo "Running domain join playbook via WinRM..."
-      ansible-playbook ${var.ansible_root}/playbooks/domain_join.yml \
-       -i ${var.ansible_root}/inventory/hosts.ini \
-       -l ${var.win_hostname} \
-       -e "dc_ip=${var.dc_ip}" \
-       -e "domain_name=${var.domain_name}" \
-       -e "@$VARS_FILE"
-    EOT
-  }
-
-  depends_on = [ 
-    aws_instance.win_srv, 
-    local_file.ansible_inventory
-  ]
+  depends_on= [aws_instance.unix_srv]
 }
 
 #Ansible configuration for the Unix server
 resource "tls_private_key" "generated_key" {
   algorithm = "RSA"
   rsa_bits = 4096
-}
-
-resource "terraform_data" "ansible_unix" {
-  triggers_replace = {
-    instance_id = aws_instance.unix_srv.id
-    instance_ip = aws_instance.unix_srv.private_ip
-    unix_hostname = var.unix_hostname
-    ansible_root = var.ansible_root
-  }
-
-  input = aws_instance.unix_srv.id
-
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
-
-    command     = <<-EOT
-      export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
-
-      PEM_FILE=$(mktemp /tmp/ssh_key_XXXXXX.pem)
-      trap "rm -f $PEM_FILE" EXIT
-      echo '${data.conjur_secret.pem_key.value}' > "$PEM_FILE"
-      chmod 600 "$PEM_FILE"
-
-      echo "Waiting for SSH to become available"
-      ansible all -m wait_for_connection \
-        -a "timeout=600 delay=60" \
-        -i ${var.ansible_root}/inventory/hosts.ini \
-        -l ${var.unix_hostname} \
-        --private-key "$PEM_FILE" 
-      sleep 30
-      echo "Running keypair playbook via SSH..."
-      ansible-playbook ${var.ansible_root}/playbooks/linux_keypair.yml \
-        -i ${var.ansible_root}/inventory/hosts.ini \
-        -l ${var.unix_hostname} \
-        -e "new_public_key='${trimspace(tls_private_key.generated_key.public_key_openssh)}'"\
-        --private-key "$PEM_FILE" 
-    EOT
-  }
-
-  depends_on = [
-    aws_instance.unix_srv,
-    local_file.ansible_inventory
-  ]
 }
 
 # CyberArk Automation - Account Onboarding and SIA Policy Creation
@@ -254,7 +197,7 @@ resource "idsec_pcloud_account" "win_srv_admin" {
 
   depends_on = [
     aws_instance.win_srv,
-    terraform_data.ansible_windows
+    aws_s3_object.win_ansible_vars
   ]
 }
 
@@ -270,6 +213,6 @@ resource "idsec_pcloud_account" "ec2-user" {
 
   depends_on = [
     aws_instance.unix_srv,
-    terraform_data.ansible_unix
+    aws_s3_object.unix_ansible_vars
   ]
 }
